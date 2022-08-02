@@ -1,0 +1,18 @@
+name: BRM_GS
+dependencies:
+- python=3.10
+- pip
+- cmake
+- ipykernel
+- ffmpeg
+- conda-forge::ffmpeg-python
+- pip:
+  - pandas
+  - dlib
+  - matplotlib
+  - scipy
+  - imutils
+  - plotnine
+  - sklearn
+  - opencv-python
+  

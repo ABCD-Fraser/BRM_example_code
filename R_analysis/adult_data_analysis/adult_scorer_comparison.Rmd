@@ -1,0 +1,501 @@
+---
+title: "rater_comparison_overall"
+output: html_document
+---
+
+```{r install_packages, include=FALSE}
+
+# install rel from archive
+library(devtools)
+install_url('https://cran.r-project.org/src/contrib/Archive/rel/rel_1.4.2.tar.gz')
+
+```
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(rel)
+library(ggplot2)
+library(reshape)
+
+
+# Set up settings and consts
+filename = 'adult_example_etdset.csv'
+
+# Read collated data file
+data_full = read_csv(filename)
+
+# Replace right value - from -1 to 2 for CK analysis
+data_full$agazeraw[data_full$agazeraw == -1] = 2
+data_full$algazeraw[data_full$algazeraw == -1] = 2
+data_full$argazeraw[data_full$argazeraw == -1] = 2
+
+# Replace right value - from -1 to 2 for CK analysis
+data_full$sgazeraw[data_full$sgazeraw == -1] = 2
+data_full$slgazeraw[data_full$slgazeraw == -1] = 2
+data_full$srgazeraw[data_full$srgazeraw == -1] = 2
+
+# split data by ppt
+data_split = split(data_full, f = as.factor(data_full$PID))
+# 
+#split into static and pursuit
+data_dynamic = data_full %>%
+  filter(h_movement=="moving")
+# 
+data_dynamic_split = data_dynamic %>%
+  split(f = as.factor(.$PID))
+# 
+data_static = data_full %>%
+  filter(h_movement!="moving")
+#
+data_static_split = data_static %>%
+  split(f = as.factor(.$PID))
+
+```
+
+
+
+
+
+# Static frames for Overall data
+## Aggregate scores
+
+```{r}
+
+
+# run CK on static frames
+CK_data = select(data_static, agazeraw, sgazeraw)
+static_CK_o = ckap(data = CK_data, weight = 'unweighted')
+print(static_CK_o)
+
+```
+
+## Aggregate confusion matrix
+```{r}
+print(table(CK_data))
+```
+
+## Cohen-Kappa by participant
+```{r}
+# Run split CK on static
+static_CK_o_split = NULL
+output = lapply(data_static_split, function(i){
+  CK_data = select(i, sgazeraw, agazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+static_CK_o_split = do.call(rbind.data.frame, output)
+print(static_CK_o_split)
+
+```
+
+
+
+# Static frames for right eye
+## Aggregate scores
+
+```{r}
+
+# run CK on static 
+CK_data = select(data_static, argazeraw, srgazeraw)
+static_CK_r = ckap(data = CK_data, weight = 'unweighted')
+print(static_CK_r)
+
+```
+
+## Aggregate confusion matrix
+```{r}
+print(table(CK_data))
+```
+
+## Cohen-Kappa by participant
+```{r}
+# Run split CK on static
+static_CK_r_split = NULL
+output = lapply(data_static_split, function(i){
+  CK_data = select(i, argazeraw, srgazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+static_CK_r_split = do.call(rbind.data.frame, output)
+print(static_CK_r_split)
+
+```
+
+
+
+# Static frames for left eye
+## Aggregate scores
+
+```{r}
+
+# run CK on static 
+CK_data = select(data_static, algazeraw, slgazeraw)
+static_CK_l = ckap(data = CK_data, weight = 'unweighted')
+print(static_CK_l)
+
+```
+
+## Aggregate confusion matrix
+```{r}
+print(table(CK_data))
+```
+
+## Cohen-Kappa by participant
+```{r}
+# Run split CK on static
+static_CK_l_split = NULL
+output = lapply(data_static_split, function(i){
+  CK_data = select(i, algazeraw, slgazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+static_CK_l_split = do.call(rbind.data.frame, output)
+print(static_CK_l_split)
+
+```
+
+
+# Combined plots for CK scores accross all participants
+
+```{r}
+
+replace_pid = T
+
+if (replace_pid){
+  PID_names = sprintf('%0.3d', 1:nrow(static_CK_l_split))
+  static_CK_l_split = cbind(static_CK_l_split,PID_names)
+
+} else {
+  PID_names = rownames(static_CK_l_split)
+}
+
+plot_fname_static = 'plots/adult_static_CK_plot.png'
+
+static_plots = data.frame(Name = PID_names, static_CK_o_split$est, static_CK_l_split$est, static_CK_r_split$est) 
+
+static_plots_se = data.frame(Name = PID_names, static_CK_o_split$se, static_CK_l_split$se, static_CK_r_split$se)
+
+
+names(static_plots)[2] <- "Overall"
+names(static_plots)[3] <- "Left"
+names(static_plots)[4] <- "Right"
+
+names(static_plots_se)[2] <- "Overall"
+names(static_plots_se)[3] <- "Left"
+names(static_plots_se)[4] <- "Right"
+
+df = melt(static_plots, id.vars = "Name")
+df_se = melt(static_plots_se, id.vars = "Name")
+names(df_se)[3] <- 'error'
+
+df = merge(df, df_se)
+
+ggplot(df, aes(x = Name, y = value, color = factor(variable))) +
+  geom_pointrange(aes(ymin=value-error, ymax=value+error), position = position_dodge(width = 0.75), size=0.3) +
+  scale_y_continuous(limits = c(-0.2, 1.1),  breaks = seq(0, 1, by = 0.2)) +
+  # ylim(0,1.01) +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black"))+
+  geom_hline(yintercept=0.61, linetype="dashed", color = "black")+
+  labs(y="Cohen's kappa score", x = "Participant ID.")
+
+ggsave(plot_fname_static)
+```
+
+
+
+
+
+# dynamic frames for Overall data
+## Aggregate scores
+
+```{r}
+
+# run CK on dynamic 
+CK_data = select(data_dynamic, agazeraw, sgazeraw)
+dynamic_CK_o = ckap(data = CK_data, weight = 'unweighted')
+print(dynamic_CK_o)
+
+```
+
+## Aggregate confusion matrix
+```{r}
+print(table(CK_data))
+```
+
+## Cohen-Kappa by participant
+```{r}
+# Run split CK on dynamic
+dynamic_CK_o_split = NULL
+output = lapply(data_dynamic_split, function(i){
+  CK_data = select(i, sgazeraw, agazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+dynamic_CK_o_split = do.call(rbind.data.frame, output)
+print(dynamic_CK_o_split)
+
+```
+
+
+
+# dynamic frames for right eye
+## Aggregate scores
+
+```{r}
+
+# run CK on dynamic 
+CK_data = select(data_dynamic, argazeraw, srgazeraw)
+dynamic_CK_r = ckap(data = CK_data, weight = 'unweighted')
+print(dynamic_CK_r)
+
+```
+
+## Aggregate confusion matrix
+```{r}
+print(table(CK_data))
+```
+
+## Cohen-Kappa by participant
+```{r}
+# Run split CK on dynamic
+dynamic_CK_r_split = NULL
+output = lapply(data_dynamic_split, function(i){
+  CK_data = select(i, argazeraw, srgazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+dynamic_CK_r_split = do.call(rbind.data.frame, output)
+print(dynamic_CK_r_split)
+
+```
+
+
+
+# dynamic frames for left eye
+## Aggregate scores
+
+```{r}
+
+# run CK on dynamic 
+CK_data = select(data_dynamic, algazeraw, slgazeraw)
+dynamic_CK_l = ckap(data = CK_data, weight = 'unweighted')
+print(dynamic_CK_l)
+
+```
+
+## Aggregate confusion matrix
+```{r}
+print(table(CK_data))
+```
+
+## Cohen-Kappa by participant
+```{r}
+# Run split CK on dynamic
+dynamic_CK_l_split = NULL
+output = lapply(data_dynamic_split, function(i){
+  CK_data = select(i, algazeraw, slgazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+dynamic_CK_l_split = do.call(rbind.data.frame, output)
+print(dynamic_CK_l_split)
+
+```
+
+
+# Combined plots for CK scores accross all participants
+
+```{r}
+
+
+replace_pid = T
+
+if (replace_pid){
+  PID_names = sprintf('%0.3d', 1:nrow(dynamic_CK_l_split))
+  dynamic_CK_l_split = cbind(dynamic_CK_l_split,PID_names)
+
+} else {
+  PID_names = rownames(dynamic_CK_l_split)
+}
+
+plot_fname_dynamic = 'plots/adult_dynamic_CK_plot.png'
+
+dynamic_plots = data.frame(Name = PID_names, dynamic_CK_o_split$est, dynamic_CK_l_split$est, dynamic_CK_r_split$est) 
+
+dynamic_plots_se = data.frame(Name = PID_names, dynamic_CK_o_split$se, dynamic_CK_l_split$se, dynamic_CK_r_split$se)
+
+
+names(dynamic_plots)[2] <- "Overall"
+names(dynamic_plots)[3] <- "Left"
+names(dynamic_plots)[4] <- "Right"
+
+names(dynamic_plots_se)[2] <- "Overall"
+names(dynamic_plots_se)[3] <- "Left"
+names(dynamic_plots_se)[4] <- "Right"
+
+df = melt(dynamic_plots, id.vars = "Name")
+df_se = melt(dynamic_plots_se, id.vars = "Name")
+names(df_se)[3] <- 'error'
+
+df = merge(df, df_se)
+
+ggplot(df, aes(x = Name, y = value, color = factor(variable))) +
+  geom_pointrange(aes(ymin=value-error, ymax=value+error), position = position_dodge(width = 0.75), size=0.3) +
+  scale_y_continuous(limits = c(-0.2
+                                , 1),  breaks = seq(0, 1, by = 0.2)) +
+  # ylim(0,1.01) +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black"))+
+  geom_hline(yintercept=0.61, linetype="dashed", color = "black")+
+  labs(y="Cohen's kappa score", x = "Participant ID.")
+
+ggsave(plot_fname_dynamic)
+```
+
+# Combined plot for smoot pursuit subplots
+## Aggregate scores
+```{r, echo=FALSE}
+
+
+replace_pid = T
+
+if (replace_pid){
+  PID_names = sprintf('%0.3d', 1:nrow(dynamic_CK_l_split))
+  dynamic_CK_l_split = cbind(dynamic_CK_l_split,PID_names)
+
+} else {
+  PID_names = rownames(dynamic_CK_l_split)
+}
+
+plot_fname = 'plots/adult_dynamic_comparison_CK_plot.png'
+
+#select .5 - 1 % excursion and static frames
+temp_data_dynamic_0_0.5 = data_full[which((data_full$h_location > 0 & data_full$h_location < 0.5) | (data_full$h_location < 0 & data_full$h_location > -0.5)),]
+
+temp_data_dynamic = temp_data_dynamic_0_0.5 %>% 
+  split(f = as.factor(.$PID))
+temp_dynamic_0_0.5 = NULL
+output = lapply(temp_data_dynamic, function(i){
+  CK_data = select(i, sgazeraw, agazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+temp_dynamic_0_0.5 = do.call(rbind.data.frame, output)
+
+
+temp_data_dynamic_0.5_1 = data_full[which((data_full$h_location > 0.5 & data_full$h_location < 1) | (data_full$h_location < -0.5 & data_full$h_location > -1)),]
+
+temp_data_dynamic = temp_data_dynamic_0.5_1 %>% 
+  split(f = as.factor(.$PID))
+temp_dynamic_0.5_1 = NULL
+output = lapply(temp_data_dynamic, function(i){
+  CK_data = select(i, sgazeraw, agazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+temp_dynamic_0.5_1 = do.call(rbind.data.frame, output)
+
+temp_data_dynamic_0.75_1 = data_full[which((data_full$h_location > 0.75 & data_full$h_location < 1) | (data_full$h_location < -0.75 & data_full$h_location > -1)),]
+
+temp_data_dynamic = temp_data_dynamic_0.75_1 %>% 
+  split(f = as.factor(.$PID))
+temp_dynamic_0.75_1 = NULL
+output = lapply(temp_data_dynamic, function(i){
+  CK_data = select(i, sgazeraw, agazeraw)
+  my_list = ckap(data = CK_data, weight = 'unweighted') #})
+  my_list[names(my_list) %in% c("method", "call",  "mat", "weight", "data") == FALSE]})
+temp_dynamic_0.75_1 = do.call(rbind.data.frame, output)
+
+
+dynamic_plots = data.frame(Name = PID_names, temp_dynamic_0_0.5$est, temp_dynamic_0.5_1$est, temp_dynamic_0.75_1$est)
+
+dynamic_plots_se = data.frame(Name = PID_names, temp_dynamic_0_0.5$se, temp_dynamic_0.5_1$se, temp_dynamic_0.75_1$se)
+
+
+
+names(dynamic_plots)[2] <- "0 - 0.5"
+names(dynamic_plots)[3] <- "0.5 - 1"
+names(dynamic_plots)[4] <- "0.75 - 1"
+
+
+names(dynamic_plots_se)[2] <- "0 - 0.5"
+names(dynamic_plots_se)[3] <- "0.5 - 1"
+names(dynamic_plots_se)[4] <- "0.75 - 1"
+
+
+df = melt(dynamic_plots, id.vars = "Name")
+df_se = melt(dynamic_plots_se, id.vars = "Name")
+names(df_se)[3] <- 'error'
+
+df = merge(df, df_se)
+
+ggplot(df, aes(x = Name, y = value, color = factor(variable))) +
+  geom_pointrange(aes(ymin=value-error, ymax=value+error), position = position_dodge(width = 0.75), size=0.3) +
+  scale_y_continuous(limits = c(-0.4, 1),  breaks = seq(-0.3, 1, by = 0.2)) +
+  # ylim(0,1.01) +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black"))+
+  geom_hline(yintercept=0.61, linetype="dashed", color = "black")+
+  geom_hline(yintercept=0, color = "black") + 
+  labs(y="Cohen's kappa score", x = "Participant ID.")
+
+ggsave(plot_fname)
+```
+
+
+
+# Pursuit frames with excursion between 0 - 0.5 
+## Aggregate scores
+```{r, echo=FALSE}
+
+
+
+# run CK on dynamic 
+CK_data = select(temp_data_dynamic_0_0.5, agazeraw, sgazeraw)
+dynamic_CK_o = ckap(data = CK_data, weight = 'unweighted')
+print(dynamic_CK_o)
+
+```
+
+
+```{r, echo=FALSE}
+print(table(CK_data))
+
+```
+
+
+# Pursuit frames with excursion between 0.5 - 1
+## Aggregate scores
+```{r, echo=FALSE}
+
+
+# run CK on dynamic 
+CK_data = select(temp_data_dynamic_0.5_1, agazeraw, sgazeraw)
+dynamic_CK_o = ckap(data = CK_data, weight = 'unweighted')
+print(dynamic_CK_o)
+
+
+```
+
+
+```{r, echo=FALSE}
+print(table(CK_data))
+
+```
+
+
+
+# Pursuit frames with excursion between 0.75 - 1 
+## Aggregate scores
+```{r, echo=FALSE}
+
+
+# run CK on dynamic 
+CK_data = select(temp_data_dynamic_0.75_1, agazeraw, sgazeraw)
+dynamic_CK_o = ckap(data = CK_data, weight = 'unweighted')
+print(dynamic_CK_o)
+
+```
+
+
+```{r, echo=FALSE}
+print(table(CK_data))
+
+```
